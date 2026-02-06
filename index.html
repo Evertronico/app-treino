@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App de Treino</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+body { background:#0f172a; color:#e5e7eb }
+.card { background:#111827; border:1px solid #1e293b }
+.done { text-decoration:line-through; opacity:.6 }
+.timer { font-size:2rem; font-weight:bold }
+</style>
+
+<link rel="manifest" href="manifest.json">
+</head>
+<body>
+
+<div class="container py-3 mb-5">
+<h4 class="text-center">🏋️ App de Treino</h4>
+
+<input type="date" id="data" class="form-control mb-2">
+
+<div class="d-flex gap-2 mb-2 overflow-auto" id="dias"></div>
+
+<div id="treino"></div>
+
+<button class="btn btn-success w-100 mt-2" onclick="addExercicio()">➕ Adicionar exercício</button>
+
+<hr>
+
+<h5>⏱️ Timer</h5>
+<div class="timer text-center" id="timer">00:00</div>
+<button class="btn btn-info w-100" onclick="startTimer()">Iniciar 60s</button>
+
+<hr>
+
+<button class="btn btn-warning w-100" onclick="exportar()">📦 Backup</button>
+<input type="file" class="form-control mt-2" onchange="importar(event)">
+
+</div>
+
+<footer class="fixed-bottom p-2 bg-dark">
+<button class="btn btn-primary w-100" onclick="salvar()">💾 Salvar treino</button>
+</footer>
+
+<script>
+const treinoBase = JSON.parse(localStorage.getItem("treinoBase")) || {
+  "Segunda":[{nome:"Remada curvada",series:"5",reps:"5"}],
+  "Terça":[{nome:"Agachamento frontal",series:"5",reps:"6"}],
+  "Quarta":[{nome:"Supino inclinado",series:"5",reps:"5"}],
+  "Quinta":[{nome:"Terra romeno",series:"5",reps:"6"}],
+  "Sexta":[{nome:"Desenvolvimento militar",series:"5",reps:"5"}]
+};
+
+let diaAtual = "Segunda";
+let registros = JSON.parse(localStorage.getItem("registros")) || {};
+
+document.getElementById("data").valueAsDate = new Date();
+
+function montarDias(){
+  const d=document.getElementById("dias"); d.innerHTML="";
+  Object.keys(treinoBase).forEach(dia=>{
+    const b=document.createElement("button");
+    b.className="btn btn-sm "+(dia===diaAtual?"btn-info":"btn-secondary");
+    b.innerText=dia;
+    b.onclick=()=>{diaAtual=dia; montarDias(); montarTreino();}
+    d.appendChild(b);
+  });
+}
+
+function montarTreino(){
+  const div=document.getElementById("treino"); div.innerHTML="";
+  const data=document.getElementById("data").value;
+  const diaReg=registros[data]?.[diaAtual]||[];
+  treinoBase[diaAtual].forEach((ex,i)=>{
+    const r=diaReg[i]||{};
+    div.innerHTML+=`
+    <div class="card mb-2">
+      <div class="card-body">
+        <input class="form-check-input me-2" type="checkbox" ${r.feito?"checked":""}>
+        <input class="form-control mb-1" value="${ex.nome}">
+        <div class="row g-1">
+          <div class="col"><input class="form-control" value="${r.series||ex.series}" placeholder="Séries"></div>
+          <div class="col"><input class="form-control" value="${r.reps||ex.reps}" placeholder="Reps"></div>
+          <div class="col"><input class="form-control" value="${r.carga||""}" placeholder="Carga"></div>
+        </div>
+        <textarea class="form-control mt-1" placeholder="Obs">${r.obs||""}</textarea>
+      </div>
+    </div>`;
+  });
+}
+
+function salvar(){
+  const data=document.getElementById("data").value;
+  registros[data]=registros[data]||{};
+  registros[data][diaAtual]=[];
+  document.querySelectorAll(".card").forEach(c=>{
+    registros[data][diaAtual].push({
+      feito:c.querySelector("input[type=checkbox]").checked,
+      nome:c.querySelectorAll("input")[1].value,
+      series:c.querySelectorAll("input")[2].value,
+      reps:c.querySelectorAll("input")[3].value,
+      carga:c.querySelectorAll("input")[4].value,
+      obs:c.querySelector("textarea").value
+    });
+  });
+  localStorage.setItem("registros",JSON.stringify(registros));
+  localStorage.setItem("treinoBase",JSON.stringify(treinoBase));
+  alert("Salvo!");
+}
+
+function addExercicio(){
+  treinoBase[diaAtual].push({nome:"Novo exercício",series:"",reps:""});
+  montarTreino();
+}
+
+let t;
+function startTimer(){
+  let s=60;
+  clearInterval(t);
+  t=setInterval(()=>{
+    document.getElementById("timer").innerText="00:"+String(s--).padStart(2,"0");
+    if(s<0){clearInterval(t); navigator.vibrate?.(300);}
+  },1000);
+}
+
+function exportar(){
+  const data={treinoBase,registros};
+  const blob=new Blob([JSON.stringify(data)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="backup-treino.json";
+  a.click();
+}
+
+function importar(e){
+  const file=e.target.files[0];
+  const r=new FileReader();
+  r.onload=()=>{
+    const d=JSON.parse(r.result);
+    localStorage.setItem("treinoBase",JSON.stringify(d.treinoBase));
+    localStorage.setItem("registros",JSON.stringify(d.registros));
+    location.reload();
+  };
+  r.readAsText(file);
+}
+
+montarDias(); montarTreino();
+
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
+</body>
+</html>
